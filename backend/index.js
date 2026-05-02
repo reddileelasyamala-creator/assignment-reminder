@@ -5,7 +5,9 @@ const pool = require('./db');
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: "https://assignment-reminder-chi.vercel.app"
+}));
 app.use(express.json());
 
 // ---------------- ROUTES ----------------
@@ -110,13 +112,22 @@ app.delete('/assignments/:id', async (req, res) => {
 
 // ---------------- GROUPS ----------------
 
-// 7. Get Groups
-app.get('/groups', async (req, res) => {
+// 7. Get only user's groups
+app.get('/groups/:userId', async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM groups");
+    const { userId } = req.params;
+
+    const result = await pool.query(
+      `SELECT g.* FROM groups g
+       JOIN group_members gm ON g.id = gm.group_id
+       WHERE gm.user_id = $1`,
+      [userId]
+    );
+
     res.json(result.rows);
   } catch (err) {
-    res.status(500).send(err.message);
+    console.error(err.message);
+    res.status(500).send("Error fetching groups");
   }
 });
 
