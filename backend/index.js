@@ -113,21 +113,22 @@ app.delete('/assignments/:id', async (req, res) => {
 // ---------------- GROUPS ----------------
 
 // 7. Get only user's groups
-app.get('/groups/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
+app.get("/groups/:user_id", async (req, res) => {
+  const { user_id } = req.params;
 
+  try {
     const result = await pool.query(
-      `SELECT g.* FROM groups g
+      `SELECT g.*
+       FROM groups g
        JOIN group_members gm ON g.id = gm.group_id
        WHERE gm.user_id = $1`,
-      [userId]
+      [user_id]
     );
 
     res.json(result.rows);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Error fetching groups");
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch groups" });
   }
 });
 
