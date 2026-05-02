@@ -132,15 +132,30 @@ app.get('/groups/:userId', async (req, res) => {
 });
 
 // 8. Create Group (with member added)
-app.post('/groups', async (req, res) => {
-  try {
-    const { name, creator, userId } = req.body;
+app.post("/groups", async (req, res) => {
+  const { name, creator } = req.body;
 
+  try {
     // 1. Create group
-    const group = await pool.query(
+    const groupResult = await pool.query(
       "INSERT INTO groups (name, creator) VALUES ($1, $2) RETURNING *",
       [name, creator]
     );
+
+    const group = groupResult.rows[0];
+
+    // 2. Add creator as member
+    await pool.query(
+      "INSERT INTO group_members (group_id, user_id) VALUES ($1, $2)",
+      [group.id, creator]
+    );
+
+    res.json(group);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to create group" });
+  }
+});
 
     // 2. Add creator as member
     await pool.query(
