@@ -4,25 +4,36 @@ const pool = require('./db');
 
 const app = express();
 
-// Middleware
 app.use(cors({
-  origin: "https://assignment-reminder-chi.vercel.app"
+  origin: [
+    "http://localhost:5173",
+    "https://assignment-reminder-chi.vercel.app"
+  ],
+  credentials: true
 }));
 app.use(express.json());
 
-// ---------------- ROUTES ----------------
-
-// 1. Welcome
+// ---------------- ROOT ----------------
 app.get('/', (req, res) => {
   res.send("Backend Server is Running!");
 });
 
 // ---------------- AUTH ----------------
 
-// 2. Register
+// REGISTER (FIXED)
 app.post('/register', async (req, res) => {
   try {
     const { username, password } = req.body;
+
+    // 🔥 CHECK FIRST
+    const check = await pool.query(
+      "SELECT * FROM users WHERE username = $1",
+      [username]
+    );
+
+    if (check.rows.length > 0) {
+      return res.status(400).json({ message: "User already exists" });
+    }
 
     const newUser = await pool.query(
       "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id, username",
@@ -30,13 +41,14 @@ app.post('/register', async (req, res) => {
     );
 
     res.json(newUser.rows[0]);
+
   } catch (err) {
     console.error("Register Error:", err.message);
-    res.status(400).send("User already exists");
+    res.status(500).send("Register error");
   }
 });
 
-// 3. Login
+// LOGIN (FIXED)
 app.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -46,11 +58,12 @@ app.post('/login', async (req, res) => {
       [username, password]
     );
 
-    if (user.rows.length > 0) {
-      res.json(user.rows[0]);
-    } else {
-      res.status(401).send("Invalid credentials");
+    if (user.rows.length === 0) {
+      return res.status(401).send("Invalid credentials");
     }
+
+    res.json(user.rows[0]);
+
   } catch (err) {
     console.error("Login Error:", err.message);
     res.status(500).send("Server error");
@@ -59,11 +72,10 @@ app.post('/login', async (req, res) => {
 
 // ---------------- ASSIGNMENTS ----------------
 
-// 4. Get Assignments
 app.get('/assignments/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
+  const { userId } = req.params;
 
+  try {
     const result = await pool.query(
       "SELECT * FROM assignments WHERE user_id = $1 ORDER BY due_date ASC",
       [userId]
@@ -71,16 +83,14 @@ app.get('/assignments/:userId', async (req, res) => {
 
     res.json(result.rows);
   } catch (err) {
-    console.error(err.message);
     res.status(500).send("Error fetching assignments");
   }
 });
 
-// 5. Add Assignment
 app.post('/assignments', async (req, res) => {
-  try {
-    const { userId, title, subject, dueDate } = req.body;
+  const { userId, title, subject, dueDate } = req.body;
 
+  try {
     const newAssignment = await pool.query(
       "INSERT INTO assignments (user_id, title, subject, due_date) VALUES ($1, $2, $3, $4) RETURNING *",
       [userId, title, subject, dueDate]
@@ -88,31 +98,23 @@ app.post('/assignments', async (req, res) => {
 
     res.json(newAssignment.rows[0]);
   } catch (err) {
-    console.error(err.message);
     res.status(500).send("Error adding assignment");
   }
 });
 
-// 6. Delete Assignment
 app.delete('/assignments/:id', async (req, res) => {
+  const { id } = req.params;
+
   try {
-    const { id } = req.params;
-
-    await pool.query(
-      "DELETE FROM assignments WHERE id = $1",
-      [id]
-    );
-
-    res.json({ message: "Assignment deleted" });
+    await pool.query("DELETE FROM assignments WHERE id = $1", [id]);
+    res.json({ message: "Deleted" });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Error deleting assignment");
+    res.status(500).send("Error deleting");
   }
 });
 
 // ---------------- GROUPS ----------------
 
-// 7. Get only user's groups
 app.get("/groups/:user_id", async (req, res) => {
   const { user_id } = req.params;
 
@@ -127,17 +129,14 @@ app.get("/groups/:user_id", async (req, res) => {
 
     res.json(result.rows);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch groups" });
+    res.status(500).send("Group fetch error");
   }
 });
 
-// 8. Create Group (with member added)
 app.post("/groups", async (req, res) => {
   const { name, creator } = req.body;
 
   try {
-    // 1. Create group
     const groupResult = await pool.query(
       "INSERT INTO groups (name, creator) VALUES ($1, $2) RETURNING *",
       [name, creator]
@@ -145,7 +144,6 @@ app.post("/groups", async (req, res) => {
 
     const group = groupResult.rows[0];
 
-    // 2. Add creator as member
     await pool.query(
       "INSERT INTO group_members (group_id, user_id) VALUES ($1, $2)",
       [group.id, creator]
@@ -153,20 +151,18 @@ app.post("/groups", async (req, res) => {
 
     res.json(group);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to create group" });
+    res.status(500).send("Group create error");
   }
 });
 
-// Add user to group
+// ADD MEMBER
 app.post("/groups/:groupId/add-member", async (req, res) => {
   const { groupId } = req.params;
   const { userId } = req.body;
 
   try {
-    // check if already member
     const existing = await pool.query(
-      "SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2",
+      "SELECT * FROM group_members WHERE group_id=$1 AND user_id=$2",
       [groupId, userId]
     );
 
@@ -179,46 +175,65 @@ app.post("/groups/:groupId/add-member", async (req, res) => {
       [groupId, userId]
     );
 
-    res.json({ message: "User added to group" });
+    res.json({ message: "Added" });
   } catch (err) {
-    console.error(err);
     res.status(500).send("Error adding member");
   }
 });
 
+// DELETE GROUP
+app.delete("/groups/:id", async (req, res) => {
+  const { id } = req.params;
+  const { userId } = req.body;
 
+  try {
+    const g = await pool.query("SELECT * FROM groups WHERE id=$1", [id]);
+
+    if (!g.rows.length) return res.status(404).send("Not found");
+
+    if (String(g.rows[0].creator) !== String(userId)) {
+      return res.status(403).send("Only creator can delete");
+    }
+
+    await pool.query("DELETE FROM messages WHERE group_id=$1", [id]);
+    await pool.query("DELETE FROM group_members WHERE group_id=$1", [id]);
+    await pool.query("DELETE FROM groups WHERE id=$1", [id]);
+
+    res.json({ message: "Deleted" });
+  } catch (err) {
+    res.status(500).send("Delete error");
+  }
+});
 
 // ---------------- MESSAGES ----------------
 
-// 9. Get Messages
 app.get('/messages/:groupId', async (req, res) => {
-  try {
-    const { groupId } = req.params;
+  const { groupId } = req.params;
 
+  try {
     const result = await pool.query(
-      "SELECT * FROM messages WHERE group_id = $1 ORDER BY id ASC",
+      "SELECT * FROM messages WHERE group_id=$1 ORDER BY id ASC",
       [groupId]
     );
 
     res.json(result.rows);
   } catch (err) {
-    res.status(500).send(err.message);
+    res.status(500).send("Message error");
   }
 });
 
-// 10. Send Message
 app.post('/messages', async (req, res) => {
-  try {
-    const { groupId, sender, text } = req.body;
+  const { groupId, sender, text } = req.body;
 
+  try {
     const newMessage = await pool.query(
-      "INSERT INTO messages (group_id, sender, text) VALUES ($1, $2, $3) RETURNING *",
+      "INSERT INTO messages (group_id, sender, text) VALUES ($1,$2,$3) RETURNING *",
       [groupId, sender, text]
     );
 
     res.json(newMessage.rows[0]);
   } catch (err) {
-    res.status(500).send(err.message);
+    res.status(500).send("Send error");
   }
 });
 
@@ -226,5 +241,5 @@ app.post('/messages', async (req, res) => {
 
 const PORT = 5000;
 app.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
 });

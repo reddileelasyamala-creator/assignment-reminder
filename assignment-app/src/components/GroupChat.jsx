@@ -11,6 +11,9 @@ const GroupChat = () => {
   const [newGroupName, setNewGroupName] = useState("");
   const [msgText, setMsgText] = useState("");
 
+  // NEW STATES
+  const [newMemberId, setNewMemberId] = useState("");
+
   // 🔹 Fetch user groups
   const fetchGroups = async () => {
     try {
@@ -21,10 +24,16 @@ const GroupChat = () => {
     }
   };
 
-  // 🔹 Fetch messages
+  // 🔹 Fetch messages (SECURE)
   const fetchMessages = async (groupId) => {
-    const res = await API.get(`/messages/${groupId}`);
-    setMessages(res.data);
+    try {
+      const res = await API.get(
+        `/messages/${groupId}?userId=${user.id}`
+      );
+      setMessages(res.data);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   useEffect(() => {
@@ -45,7 +54,7 @@ const GroupChat = () => {
       try {
         await API.post("/groups", {
           name: newGroupName,
-          creator: user.id   // IMPORTANT
+          creator: user.id
         });
 
         setNewGroupName("");
@@ -72,7 +81,39 @@ const GroupChat = () => {
     }
   };
 
-  // 🔹 UI
+  // 🔹 ADD MEMBER
+  const addMember = async () => {
+    if (!newMemberId) return;
+
+    try {
+      await API.post(`/groups/${selectedGroup.id}/add-member`, {
+        userId: Number(newMemberId)
+      });
+
+      alert("User added!");
+      setNewMemberId("");
+    } catch (err) {
+      alert(err.response?.data?.message || "Error adding member");
+    }
+  };
+
+  // 🔹 DELETE GROUP
+  const deleteGroup = async (groupId) => {
+    try {
+      await API.delete(`/groups/${groupId}`, {
+        data: { userId: user.id }
+      });
+
+      alert("Group deleted");
+      fetchGroups();
+    } catch (err) {
+      alert("Delete failed");
+    }
+  };
+
+  // ---------------- UI ----------------
+
+  // GROUP LIST VIEW
   if (!selectedGroup) {
     return (
       <div style={styles.container}>
@@ -91,13 +132,17 @@ const GroupChat = () => {
 
         <div style={styles.groupGrid}>
           {groups.map((g) => (
-            <div
-              key={g.id}
-              style={styles.groupCard}
-              onClick={() => setSelectedGroup(g)}
-            >
+            <div key={g.id} style={styles.groupCard}>
               <h4>{g.name}</h4>
               <small>Creator: {g.creator}</small>
+
+              <button onClick={() => setSelectedGroup(g)}>
+                Open
+              </button>
+
+              <button onClick={() => deleteGroup(g.id)}>
+                Delete
+              </button>
             </div>
           ))}
         </div>
@@ -105,13 +150,28 @@ const GroupChat = () => {
     );
   }
 
+  // CHAT VIEW
   return (
     <div style={styles.container}>
       <button onClick={() => setSelectedGroup(null)}>⬅ Back</button>
 
       <div style={styles.chatBox}>
-        <div style={styles.chatHeader}>{selectedGroup.name}</div>
+        <div style={styles.chatHeader}>
+          {selectedGroup.name}
+        </div>
 
+        {/* ADD MEMBER UI */}
+        <div style={{ marginBottom: "10px" }}>
+          <input
+            type="number"
+            placeholder="Enter User ID"
+            value={newMemberId}
+            onChange={(e) => setNewMemberId(e.target.value)}
+          />
+          <button onClick={addMember}>Add Member</button>
+        </div>
+
+        {/* MESSAGES */}
         <div style={styles.msgList}>
           {messages.map((m) => (
             <div key={m.id}>
@@ -120,6 +180,7 @@ const GroupChat = () => {
           ))}
         </div>
 
+        {/* SEND MESSAGE */}
         <form onSubmit={sendMessage}>
           <input
             value={msgText}
@@ -137,8 +198,15 @@ const styles = {
   container: { padding: "20px" },
   createBox: { display: "flex", gap: "10px" },
   groupGrid: { display: "grid", gap: "10px", marginTop: "20px" },
-  groupCard: { padding: "10px", border: "1px solid #ddd", cursor: "pointer" },
-  chatBox: { border: "1px solid #ddd", marginTop: "10px" }
+  groupCard: {
+    padding: "10px",
+    border: "1px solid #ddd",
+    display: "flex",
+    flexDirection: "column",
+    gap: "5px"
+  },
+  chatBox: { border: "1px solid #ddd", marginTop: "10px", padding: "10px" },
+  msgList: { marginBottom: "10px" }
 };
 
 export default GroupChat;
