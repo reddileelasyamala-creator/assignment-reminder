@@ -158,18 +158,35 @@ app.post("/groups", async (req, res) => {
   }
 });
 
-    // 2. Add creator as member
-    await pool.query(
-      "INSERT INTO group_members (group_id, user_id) VALUES ($1, $2)",
-      [group.rows[0].id, userId]
+// Add user to group
+app.post("/groups/:groupId/add-member", async (req, res) => {
+  const { groupId } = req.params;
+  const { userId } = req.body;
+
+  try {
+    // check if already member
+    const existing = await pool.query(
+      "SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2",
+      [groupId, userId]
     );
 
-    res.json(group.rows[0]);
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ message: "Already a member" });
+    }
+
+    await pool.query(
+      "INSERT INTO group_members (group_id, user_id) VALUES ($1, $2)",
+      [groupId, userId]
+    );
+
+    res.json({ message: "User added to group" });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send(err.message);
+    console.error(err);
+    res.status(500).send("Error adding member");
   }
 });
+
+
 
 // ---------------- MESSAGES ----------------
 
