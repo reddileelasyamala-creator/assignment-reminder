@@ -6,15 +6,14 @@ const GroupChat = () => {
   const user = JSON.parse(sessionStorage.getItem("user"));
 
   const [groups, setGroups] = useState([]);
-  const [messages, setMessages] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
+  const [messages, setMessages] = useState([]);
   const [newGroupName, setNewGroupName] = useState("");
   const [msgText, setMsgText] = useState("");
-
-  // NEW STATES
-  const [newMemberId, setNewMemberId] = useState("");
-
-  // 🔹 Fetch user groups
+  const [inviteUsername, setInviteUsername] = useState("");
+  const [groupMembers, setGroupMembers] = useState([]);
+  const [showMembers, setShowMembers] = useState(false);
+  // FETCH GROUPS
   const fetchGroups = async () => {
     try {
       const res = await API.get(`/groups/${user.id}`);
@@ -24,125 +23,209 @@ const GroupChat = () => {
     }
   };
 
-  // 🔹 Fetch messages (SECURE)
-  const fetchMessages = async (groupId) => {
+  // FETCH MESSAGES
+  const fetchMessages = async (id) => {
     try {
-      const res = await API.get(
-        `/messages/${groupId}?userId=${user.id}`
-      );
+      const res = await API.get(`/messages/${id}`);
       setMessages(res.data);
     } catch (err) {
       console.error(err);
     }
   };
+  
 
   useEffect(() => {
     fetchGroups();
   }, []);
 
   useEffect(() => {
-    if (selectedGroup) {
-      fetchMessages(selectedGroup.id);
-    }
-  }, [selectedGroup]);
+  if (!selectedGroup) return;
 
-  // 🔹 Create group
-  const handleCreate = async (e) => {
+  const interval = setInterval(async () => {
+    await fetchMessages(selectedGroup.id);
+    await API.post(`/messages/${selectedGroup.id}/read/${user.id}`);
+  }, 5000);
+
+  return () => clearInterval(interval);
+}, [selectedGroup]);
+
+
+
+  const fetchMembers = async (groupId) => {
+  try {
+    const res = await API.get(
+      `/groups/${groupId}/members`
+    );
+
+    setGroupMembers(res.data);
+
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+  // CREATE GROUP
+  const createGroup = async (e) => {
     e.preventDefault();
 
-    if (newGroupName.trim()) {
-      try {
-        await API.post("/groups", {
-          name: newGroupName,
-          creator: user.id
-        });
+    if (!newGroupName) return;
 
-        setNewGroupName("");
-        fetchGroups();
-      } catch (err) {
-        console.error(err);
-      }
+    try {
+      await API.post("/groups", {
+        name: newGroupName,
+        creator: user.id,
+      });
+
+      setNewGroupName("");
+      fetchGroups();
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  // 🔹 Send message
+  // SEND MESSAGE
   const sendMessage = async (e) => {
     e.preventDefault();
 
-    if (msgText.trim() && selectedGroup) {
+    if (!msgText) return;
+
+    try {
       await API.post("/messages", {
         groupId: selectedGroup.id,
         sender: user.username,
-        text: msgText
+        text: msgText,
       });
 
       setMsgText("");
       fetchMessages(selectedGroup.id);
-    }
-  };
-
-  // 🔹 ADD MEMBER
-  const addMember = async () => {
-    if (!newMemberId) return;
-
-    try {
-      await API.post(`/groups/${selectedGroup.id}/add-member`, {
-        userId: Number(newMemberId)
-      });
-
-      alert("User added!");
-      setNewMemberId("");
     } catch (err) {
-      alert(err.response?.data?.message || "Error adding member");
+      console.error(err);
     }
   };
 
-  // 🔹 DELETE GROUP
-  const deleteGroup = async (groupId) => {
+  // DELETE GROUP
+  const deleteGroup = async (id) => {
     try {
-      await API.delete(`/groups/${groupId}`, {
-        data: { userId: user.id }
-      });
-
-      alert("Group deleted");
+      await API.delete(`/groups/${id}?userId=${user.id}`);
       fetchGroups();
     } catch (err) {
+      console.error(err);
       alert("Delete failed");
     }
   };
 
-  // ---------------- UI ----------------
+  // LEAVE GROUP
+  const leaveGroup = async (id) => {
+    try {
+      await API.delete(`/groups/${id}/leave?userId=${user.id}`);
+      fetchGroups();
+    } catch (err) {
+      console.error(err);
+      alert("Leave failed");
+    }
+  };
 
-  // GROUP LIST VIEW
+  // INVITE MEMBER
+  const inviteMember = async (groupId) => {
+    if (!inviteUsername) {
+      alert("Enter username");
+      return;
+    }
+
+    try {
+      await API.post("/groups/add-member", {
+        groupId,
+        username: inviteUsername,
+      });
+
+      alert("Member added");
+      setInviteUsername("");
+    } catch (err) {
+      console.error(err);
+      alert("Invite failed");
+    }
+  };
+
+  // =========================
+  // GROUP LIST PAGE
+  // =========================
+
   if (!selectedGroup) {
     return (
       <div style={styles.container}>
         <BackButton />
-        <h2>Groups 👥</h2>
 
-        <form onSubmit={handleCreate} style={styles.createBox}>
-          <input
-            style={styles.input}
-            placeholder="Group Name"
-            value={newGroupName}
-            onChange={(e) => setNewGroupName(e.target.value)}
-          />
-          <button style={styles.btn}>Create</button>
-        </form>
+        <div style={styles.cardWrapper}>
+          <h2 style={styles.heading}>Groups 👥</h2>
 
-        <div style={styles.groupGrid}>
+          <form onSubmit={createGroup} style={styles.formRow}>
+            <input
+              type="text"
+              placeholder="Enter group name"
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              style={styles.input}
+            />
+
+            <button type="submit" style={styles.createBtn}>
+              Create
+            </button>
+          </form>
+
           {groups.map((g) => (
             <div key={g.id} style={styles.groupCard}>
-              <h4>{g.name}</h4>
-              <small>Creator: {g.creator}</small>
+              <div>
+                <h3>{g.name}</h3>
+                <p>Creator: {g.creator}</p>
 
-              <button onClick={() => setSelectedGroup(g)}>
-                Open
-              </button>
+                <div style={styles.inviteRow}>
+                  <input
+                    type="text"
+                    placeholder="Invite username"
+                    value={inviteUsername}
+                    onChange={(e) => setInviteUsername(e.target.value)}
+                    style={styles.inviteInput}
+                  />
 
-              <button onClick={() => deleteGroup(g.id)}>
-                Delete
-              </button>
+                  <button
+                    onClick={() => inviteMember(g.id)}
+                    style={styles.inviteBtn}
+                  >
+                    Invite
+                  </button>
+                </div>
+              </div>
+
+              <div style={styles.actions}>
+                <button
+                  style={styles.openBtn}
+                  onClick={async () => {
+  setSelectedGroup(g);
+  fetchMessages(g.id);
+  fetchMembers(g.id);
+  // ✅ mark messages as read
+  await API.post(`/messages/${g.id}/read/${user.id}`);
+}}
+                >
+                  Open
+                </button>
+
+                {Number(g.creator) === Number(user.id) ? (
+                  <button
+                    style={styles.deleteBtn}
+                    onClick={() => deleteGroup(g.id)}
+                  >
+                    Delete
+                  </button>
+                ) : (
+                  <button
+                    style={styles.leaveBtn}
+                    onClick={() => leaveGroup(g.id)}
+                  >
+                    Leave
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -150,44 +233,64 @@ const GroupChat = () => {
     );
   }
 
-  // CHAT VIEW
+  // =========================
+  // CHAT PAGE
+  // =========================
+
   return (
     <div style={styles.container}>
-      <button onClick={() => setSelectedGroup(null)}>⬅ Back</button>
+      <BackButton />
 
-      <div style={styles.chatBox}>
-        <div style={styles.chatHeader}>
-          {selectedGroup.name}
-        </div>
+      <div style={styles.chatWrapper}>
+        <button
+          style={styles.backInsideBtn}
+          onClick={() => setSelectedGroup(null)}
+        >
+          ← Back to Groups
+        </button>
 
-        {/* ADD MEMBER UI */}
-        <div style={{ marginBottom: "10px" }}>
-          <input
-            type="number"
-            placeholder="Enter User ID"
-            value={newMemberId}
-            onChange={(e) => setNewMemberId(e.target.value)}
-          />
-          <button onClick={addMember}>Add Member</button>
-        </div>
+        <h2>{selectedGroup.name}</h2>
+        <div style={styles.membersBox}>
 
-        {/* MESSAGES */}
-        <div style={styles.msgList}>
+  <button
+    style={styles.membersBtn}
+    onClick={() => setShowMembers(!showMembers)}
+  >
+    👥 Members
+  </button>
+
+  {showMembers && (
+    <div style={styles.membersList}>
+      {groupMembers.map((member) => (
+        <span key={member.id} style={styles.memberTag}>
+          {member.username}
+        </span>
+      ))}
+    </div>
+  )}
+
+</div>
+
+        <div style={styles.chatBox}>
           {messages.map((m) => (
-            <div key={m.id}>
+            <div key={m.id} style={styles.message}>
               <b>{m.sender}</b>: {m.text}
             </div>
           ))}
         </div>
 
-        {/* SEND MESSAGE */}
-        <form onSubmit={sendMessage}>
+        <form onSubmit={sendMessage} style={styles.formRow}>
           <input
+            type="text"
+            placeholder="Type message..."
             value={msgText}
             onChange={(e) => setMsgText(e.target.value)}
-            placeholder="Type message..."
+            style={styles.input}
           />
-          <button>Send</button>
+
+          <button type="submit" style={styles.sendBtn}>
+            Send
+          </button>
         </form>
       </div>
     </div>
@@ -195,18 +298,178 @@ const GroupChat = () => {
 };
 
 const styles = {
-  container: { padding: "20px" },
-  createBox: { display: "flex", gap: "10px" },
-  groupGrid: { display: "grid", gap: "10px", marginTop: "20px" },
-  groupCard: {
-    padding: "10px",
-    border: "1px solid #ddd",
-    display: "flex",
-    flexDirection: "column",
-    gap: "5px"
+  container: {
+    padding: "20px",
+    background: "#f5f7fb",
+    minHeight: "100vh",
   },
-  chatBox: { border: "1px solid #ddd", marginTop: "10px", padding: "10px" },
-  msgList: { marginBottom: "10px" }
+
+  cardWrapper: {
+    background: "#fff",
+    padding: "25px",
+    borderRadius: "12px",
+    maxWidth: "850px",
+    margin: "20px auto",
+    boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
+  },
+
+  heading: {
+    marginBottom: "20px",
+  },
+
+  formRow: {
+    display: "flex",
+    gap: "10px",
+    marginBottom: "20px",
+  },
+
+  input: {
+    flex: 1,
+    padding: "12px",
+    borderRadius: "8px",
+    border: "1px solid #ccc",
+  },
+
+  createBtn: {
+    background: "#5b5ce2",
+    color: "#fff",
+    border: "none",
+    padding: "12px 18px",
+    borderRadius: "8px",
+    cursor: "pointer",
+  },
+
+  groupCard: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "20px",
+    borderRadius: "10px",
+    background: "#fafafa",
+    marginTop: "15px",
+  },
+
+  actions: {
+    display: "flex",
+    gap: "10px",
+  },
+
+  openBtn: {
+    background: "#4285f4",
+    color: "#fff",
+    border: "none",
+    padding: "10px 15px",
+    borderRadius: "8px",
+    cursor: "pointer",
+  },
+
+  deleteBtn: {
+    background: "#ff4d4d",
+    color: "#fff",
+    border: "none",
+    padding: "10px 15px",
+    borderRadius: "8px",
+    cursor: "pointer",
+  },
+
+  leaveBtn: {
+    background: "#ff9800",
+    color: "#fff",
+    border: "none",
+    padding: "10px 15px",
+    borderRadius: "8px",
+    cursor: "pointer",
+  },
+
+  inviteRow: {
+    display: "flex",
+    gap: "10px",
+    marginTop: "10px",
+  },
+
+  inviteInput: {
+    padding: "10px",
+    borderRadius: "8px",
+    border: "1px solid #ccc",
+  },
+
+  inviteBtn: {
+    background: "#10b981",
+    color: "#fff",
+    border: "none",
+    padding: "10px 15px",
+    borderRadius: "8px",
+    cursor: "pointer",
+  },
+
+  chatWrapper: {
+    background: "#fff",
+    padding: "25px",
+    borderRadius: "12px",
+    maxWidth: "850px",
+    margin: "20px auto",
+    boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
+  },
+
+  chatBox: {
+    background: "#f9f9f9",
+    padding: "15px",
+    borderRadius: "10px",
+    height: "350px",
+    overflowY: "auto",
+    marginBottom: "20px",
+  },
+
+  message: {
+    padding: "10px",
+    background: "#fff",
+    borderRadius: "8px",
+    marginBottom: "10px",
+  },
+
+  sendBtn: {
+    background: "#5b5ce2",
+    color: "#fff",
+    border: "none",
+    padding: "12px 18px",
+    borderRadius: "8px",
+    cursor: "pointer",
+  },
+
+  backInsideBtn: {
+    marginBottom: "15px",
+    padding: "8px 14px",
+    borderRadius: "6px",
+    border: "none",
+    background: "#ddd",
+    cursor: "pointer",
+  },
+
+  membersBox: {
+  marginBottom: "20px",
+},
+
+membersList: {
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+},
+
+memberTag: {
+  background: "#e0e7ff",
+  padding: "8px 12px",
+  borderRadius: "20px",
+  fontSize: "14px",
+},
+membersBtn: {
+  background: "#5b5ce2",
+  color: "white",
+  border: "none",
+  padding: "10px 16px",
+  borderRadius: "8px",
+  cursor: "pointer",
+  marginBottom: "10px",
+},
 };
 
 export default GroupChat;
