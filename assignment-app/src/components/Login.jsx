@@ -26,7 +26,7 @@ const Login = () => {
         JSON.stringify(res.data)
       );
 
-      alert("Login successful");
+      
 
       // ✅ GO TO DASHBOARD
       navigate("/");
