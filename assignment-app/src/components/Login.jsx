@@ -8,6 +8,7 @@ const Login = () => {
 
   const navigate = useNavigate();
 
+  // ================= LOGIN =================
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -19,13 +20,15 @@ const Login = () => {
 
       console.log("LOGIN RESPONSE:", res.data);
 
-      // ✅ Store FULL user object
+      // ✅ SAVE USER CORRECTLY
       sessionStorage.setItem(
         "user",
         JSON.stringify(res.data)
       );
 
-      // ✅ Go to Dashboard
+      alert("Login successful");
+
+      // ✅ GO TO DASHBOARD
       navigate("/");
 
     } catch (err) {
@@ -41,16 +44,25 @@ const Login = () => {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        <h2 style={{ textAlign: "center" }}>
-          Assignment App 🔐
+
+        <h2 style={styles.heading}>
+          📚 Assignment Reminder
         </h2>
 
-        <form onSubmit={handleSubmit} style={styles.form}>
+        <form
+          onSubmit={handleSubmit}
+          style={styles.form}
+        >
+
+          {/* USERNAME */}
           <div style={styles.inputGroup}>
-            <label>Username</label>
+            <label style={styles.label}>
+              Username
+            </label>
 
             <input
               type="text"
+              placeholder="Enter username"
               value={username}
               onChange={(e) =>
                 setUsername(e.target.value)
@@ -60,11 +72,15 @@ const Login = () => {
             />
           </div>
 
+          {/* PASSWORD */}
           <div style={styles.inputGroup}>
-            <label>Password</label>
+            <label style={styles.label}>
+              Password
+            </label>
 
             <input
               type="password"
+              placeholder="Enter password"
               value={password}
               onChange={(e) =>
                 setPassword(e.target.value)
@@ -74,68 +90,101 @@ const Login = () => {
             />
           </div>
 
-          <button type="submit" style={styles.button}>
+          {/* LOGIN BUTTON */}
+          <button
+            type="submit"
+            style={styles.button}
+          >
             Login
           </button>
         </form>
 
-        <p
-          style={{
-            textAlign: "center",
-            marginTop: "15px",
-          }}
-        >
+        {/* REGISTER LINK */}
+        <p style={styles.registerText}>
           Don't have an account?{" "}
-          <Link to="/register">
-            Sign Up
+
+          <Link
+            to="/register"
+            style={styles.link}
+          >
+            Register
           </Link>
         </p>
+
       </div>
     </div>
   );
 };
 
+// ================= STYLES =================
 const styles = {
   container: {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    height: "100vh",
+    minHeight: "100vh",
     backgroundColor: "#f4f7f6",
+    padding: "20px",
   },
 
   card: {
-    padding: "40px",
-    background: "#fff",
-    borderRadius: "8px",
-    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-    width: "350px",
+    width: "100%",
+    maxWidth: "400px",
+    background: "white",
+    padding: "35px",
+    borderRadius: "12px",
+    boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
+  },
+
+  heading: {
+    textAlign: "center",
+    marginBottom: "25px",
+    color: "#3F51B5",
   },
 
   form: {
     display: "flex",
     flexDirection: "column",
+    gap: "18px",
   },
 
   inputGroup: {
-    marginBottom: "15px",
+    display: "flex",
+    flexDirection: "column",
+  },
+
+  label: {
+    marginBottom: "6px",
+    fontWeight: "bold",
   },
 
   input: {
-    width: "100%",
-    padding: "10px",
-    marginTop: "5px",
-    borderRadius: "4px",
+    padding: "12px",
+    borderRadius: "6px",
     border: "1px solid #ccc",
+    fontSize: "15px",
   },
 
   button: {
-    padding: "10px",
-    background: "#3F51B5",
-    color: "#fff",
+    padding: "12px",
+    backgroundColor: "#3F51B5",
+    color: "white",
     border: "none",
-    borderRadius: "4px",
+    borderRadius: "6px",
     cursor: "pointer",
+    fontSize: "16px",
+    fontWeight: "bold",
+  },
+
+  registerText: {
+    textAlign: "center",
+    marginTop: "20px",
+  },
+
+  link: {
+    color: "#3F51B5",
+    textDecoration: "none",
+    fontWeight: "bold",
   },
 };
 
