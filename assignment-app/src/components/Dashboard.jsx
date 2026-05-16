@@ -35,6 +35,10 @@ const [groups, setGroups] = useState([]);
     Notification.requestPermission();
   }
 
+  // ✅ Re-fetch when user comes back to this tab/page
+  const handleFocus = () => fetchAssignments();
+  window.addEventListener("focus", handleFocus);
+
   // ✅ Check unread messages every 15 seconds
   const checkUnread = async () => {
     try {
@@ -44,7 +48,19 @@ const [groups, setGroups] = useState([]);
       const counts = {};
       for (const group of fetchedGroups) {
         const r = await API.get(`/messages/${group.id}/unread/${user.id}`);
-        counts[group.id] = r.data.unread;
+        const unreadCount = r.data.unread;
+        counts[group.id] = unreadCount;
+
+        // ✅ Send notification if there are new unread messages
+        if (
+          unreadCount > 0 &&
+          "Notification" in window &&
+          Notification.permission === "granted"
+        ) {
+          new Notification(`💬 New message in ${group.name}`, {
+            body: `You have ${unreadCount} unread message(s)`,
+          });
+        }
       }
       setUnreadCounts(counts);
     } catch (err) {
@@ -54,8 +70,10 @@ const [groups, setGroups] = useState([]);
 
   checkUnread();
   const interval = setInterval(checkUnread, 15000);
-  return () => clearInterval(interval);
-
+  return () => {
+    clearInterval(interval);
+    window.removeEventListener("focus", handleFocus);
+  };
 }, []);
 
   const fetchAssignments = async () => {
