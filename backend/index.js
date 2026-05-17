@@ -450,7 +450,7 @@ app.post("/messages", async (req, res) => {
 app.post("/assignments", async (req, res) => {
   const { userId, title, subject, dueDate } = req.body;
 
-  if (!userId || !title || !dueDate) {
+  if (!userId || !title) {
     return res.status(400).json({
       message: "Missing required fields",
     });
