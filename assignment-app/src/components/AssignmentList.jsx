@@ -39,10 +39,10 @@ const AssignmentList = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // if (!title || !dueDate) {
-    //   alert("Fill all fields");
-    //   return;
-    // }
+    if (!title || !dueDate) {
+      alert("Fill all fields");
+      return;
+    }
 
     try {
       const res = await API.post("/assignments", {
